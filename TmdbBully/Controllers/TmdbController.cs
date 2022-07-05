@@ -25,7 +25,7 @@ namespace TmdbBully.Controllers
 		[Route("fetch")]
 		public string Fetch()
 		{
-			var fetchManager = new FetchManager(_configuration["ApiKey"]);
+			var fetchManager = new FetchManager(_configuration["ApiKey"], _dbConnectionString);
 			Task.Run(() => fetchManager.Process());
 
 			return "Fetching top 120 movies...";
