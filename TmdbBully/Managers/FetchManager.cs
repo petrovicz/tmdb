@@ -3,19 +3,26 @@ using TmdbBully.Models;
 
 namespace TmdbBully.Managers
 {
-	public class FetchManager
+	public interface IFetchManager
 	{
+		Task Process();
+	}
+
+	public class FetchManager : IFetchManager
+	{
+		private readonly IConfiguration _configuration;
+		private readonly TmdbContext _tmdbContext;
 		private readonly string _apiKey;
-		private readonly string _dbConnectionString;
 
 		public List<MovieFetchResult> MovieFetchResults { get; set; }
 		public FetchProcess FetchProcess { get; set; }
 
-		public FetchManager(string apiKey, string dbConnectionString)
+		public FetchManager(IConfiguration configuration, TmdbContext tmdbContext)
 		{
-			_apiKey = apiKey;
-			_dbConnectionString = dbConnectionString;
+			_configuration = configuration;
+			_apiKey = _configuration["ApiKey"];
 			FetchProcess = new FetchProcess(DateTime.Now);
+			_tmdbContext = tmdbContext;
 		}
 
 		public async Task Process()
@@ -95,23 +102,21 @@ namespace TmdbBully.Managers
 
 			FetchProcess.MovieIds = string.Join(",", movieIds);
 
-			using var context = new TmdbContext(_dbConnectionString);
-
-			var existingMovieIds = context.Movies.Where(m => movieIds.Contains(m.TmdbId)).Select(m => m.TmdbId).ToList();
-			var existingDirectorIds = context.Directors.Where(d => directorIds.Contains(d.TmdbId)).Select(d => d.TmdbId).ToList();
-			var existingGenreIds = context.Genres.Where(g => genreIds.Contains(g.TmdbId)).Select(g => g.TmdbId).ToList();
+			var existingMovieIds = _tmdbContext.Movies.Where(m => movieIds.Contains(m.TmdbId)).Select(m => m.TmdbId).ToList();
+			var existingDirectorIds = _tmdbContext.Directors.Where(d => directorIds.Contains(d.TmdbId)).Select(d => d.TmdbId).ToList();
+			var existingGenreIds = _tmdbContext.Genres.Where(g => genreIds.Contains(g.TmdbId)).Select(g => g.TmdbId).ToList();
 
 			movies.RemoveAll(m => existingMovieIds.Contains(m.TmdbId));
 			directors.RemoveAll(d => existingDirectorIds.Contains(d.TmdbId));
 			genres.RemoveAll(g => existingGenreIds.Contains(g.TmdbId));
 
-			var t1 = context.AddRangeAsync(movies);
-			var t2 = context.AddRangeAsync(directors);
-			var t3 = context.AddRangeAsync(genres);
-			var t4 = context.AddRangeAsync(FetchProcess);
+			var t1 = _tmdbContext.AddRangeAsync(movies);
+			var t2 = _tmdbContext.AddRangeAsync(directors);
+			var t3 = _tmdbContext.AddRangeAsync(genres);
+			var t4 = _tmdbContext.AddRangeAsync(FetchProcess);
 
 			await Task.WhenAll(t1, t2, t3, t4);
-			await context.SaveChangesAsync();
+			await _tmdbContext.SaveChangesAsync();
 		}
 
 		#endregion

@@ -1,41 +1,49 @@
 using Microsoft.AspNetCore.Mvc;
+using Quartz;
 using TmdbBully.Context;
 using TmdbBully.Managers;
 using TmdbBully.Models;
+using TmdbBully.Quartz;
 
 namespace TmdbBully.Controllers
 {
 	[ApiController]
 	public class TmdbController : ControllerBase
 	{
-		private readonly ILogger<TmdbController> _logger;
-		private readonly IConfiguration _configuration;
-		private readonly string _dbConnectionString;
+		private readonly IFetchManager _fetchManager;
+		private readonly ISchedulerFactory _schedulerFactory;
+		private readonly TmdbContext _tmdbContext;
 
-		public TmdbController(ILogger<TmdbController> logger, IConfiguration configuration)
+		public TmdbController(IFetchManager fetchManager, ISchedulerFactory schedulerFactory, TmdbContext tmdbContext)
 		{
-			_logger = logger;
-			_configuration = configuration;
-			_dbConnectionString = _configuration.GetConnectionString("DbConnectionString");
+			_fetchManager = fetchManager;
+			_schedulerFactory = schedulerFactory;
+			_tmdbContext = tmdbContext;
 		}
 
 		#region Actions
 
 		[HttpPost]
 		[Route("fetch")]
-		public string Fetch()
+		public async Task<string> Fetch()
 		{
-			var fetchManager = new FetchManager(_configuration["ApiKey"], _dbConnectionString);
-			Task.Run(() => fetchManager.Process());
+			await _fetchManager.Process();
 
-			return "Fetching top 120 movies...";
+			return "Fetched top 120 movies...";
 		}
 
 		[HttpPost]
 		[Route("schedule")]
-		public string Schedule(int seconds = 10)
+		public async Task<string> Schedule(int seconds = 10)
 		{
-			return $"Scheduling a fetch every {seconds} seconds...";
+			var scheduler = await _schedulerFactory.GetScheduler();
+
+			await scheduler.ScheduleJob(
+				JobBuilder.Create<FetchJob>().Build(),
+				TriggerBuilder.Create().WithSimpleSchedule(s => s.WithIntervalInSeconds(seconds).RepeatForever()).Build()
+			);
+
+			return $"Scheduled a fetch for every {seconds} seconds...";
 		}
 
 		#endregion
@@ -46,32 +54,28 @@ namespace TmdbBully.Controllers
 		[Route("processes")]
 		public List<FetchProcess> Processes()
 		{
-			using var context = new TmdbContext(_dbConnectionString);
-			return context.FetchProcesses.ToList();
+			return _tmdbContext.FetchProcesses.ToList();
 		}
 
 		[HttpGet]
 		[Route("movies")]
 		public List<Movie> Movies()
 		{
-			using var context = new TmdbContext(_dbConnectionString);
-			return context.Movies.ToList();
+			return _tmdbContext.Movies.ToList();
 		}
 
 		[HttpGet]
 		[Route("directors")]
 		public List<Director> Directors()
 		{
-			using var context = new TmdbContext(_dbConnectionString);
-			return context.Directors.ToList();
+			return _tmdbContext.Directors.ToList();
 		}
 
 		[HttpGet]
 		[Route("genres")]
 		public List<Genre> Genres()
 		{
-			using var context = new TmdbContext(_dbConnectionString);
-			return context.Genres.ToList();
+			return _tmdbContext.Genres.ToList();
 		}
 
 		#endregion

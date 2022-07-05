@@ -5,15 +5,11 @@ namespace TmdbBully.Context
 {
 	public partial class TmdbContext : DbContext
 	{
-		private readonly string _connectionString;
+		private readonly IConfiguration _configuration;
 
-		public TmdbContext(string connectionString)
+		public TmdbContext(IConfiguration configuration)
 		{
-			_connectionString = connectionString;
-		}
-
-		public TmdbContext(DbContextOptions<TmdbContext> options) : base(options)
-		{
+			_configuration = configuration;
 		}
 
 		public virtual DbSet<Director> Directors { get; set; }
@@ -25,7 +21,7 @@ namespace TmdbBully.Context
 		{
 			if (!optionsBuilder.IsConfigured)
 			{
-				optionsBuilder.UseSqlServer(_connectionString);
+				optionsBuilder.UseSqlServer(_configuration.GetConnectionString("DbConnectionString"));
 			}
 		}
 
